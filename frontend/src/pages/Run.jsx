@@ -1,13 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { getAgents, runAgent } from '../api'
+import { useI18n } from '../i18n/index.jsx'
 
 const WORKFLOWS = [
-  { id: 'analyze', label: '分析', desc: '考点分析 & 攻击面评估' },
-  { id: 'solve', label: '解题', desc: 'Agent 自主解题（带工具）' },
-  { id: 'writeup', label: 'Writeup', desc: '生成完整赛题报告' },
+  { id: 'analyze', key: 'wf_analyze', descKey: 'wf_analyze_desc' },
+  { id: 'solve', key: 'wf_solve', descKey: 'wf_solve_desc' },
+  { id: 'writeup', key: 'wf_writeup', descKey: 'wf_writeup_desc' },
 ]
 
 export default function Run() {
+  const { t } = useI18n()
   const [agents, setAgents] = useState([])
   const [agent, setAgent] = useState('general')
   const [workflow, setWorkflow] = useState('analyze')
@@ -32,110 +34,130 @@ export default function Run() {
     if (!title.trim() || running) return
     setEvents([]); setFlag(null); setRunning(true)
     const challenge = { title, category, description, attachment }
-    let sid = null
     runAgent(
       { agent, workflow, challenge, hint: hint || null },
       (ev) => {
-        if (ev.type === 'session') { sid = ev.sid; return }
+        if (ev.type === 'session') return
         setEvents(prev => [...prev, ev])
         if (ev.type === 'final' && ev.flag) setFlag(ev.flag)
       },
       () => setRunning(false),
-      (e) => { setEvents(prev => [...prev, { type: 'error', message: String(e) }]); setRunning(false) }
+      (e) => {
+        setEvents(prev => [...prev, { type: 'error', message: String(e) }])
+        setRunning(false)
+      },
     )
   }
 
   return (
     <div className="run-page">
-      <div className="run-form panel">
-        <h2>题目信息</h2>
-        <div className="row">
-          <label>Agent</label>
-          <select value={agent} onChange={e => setAgent(e.target.value)}>
+      <section className="run-form panel" aria-label={t('challenge_info')}>
+        <h2 className="panel-title">{t('challenge_info')}</h2>
+        <div className="field">
+          <label htmlFor="agent-sel">{t('agent')}</label>
+          <select id="agent-sel" value={agent}
+            onChange={e => setAgent(e.target.value)}>
             {agents.map(a => <option key={a.name} value={a.name}>
-              {a.display_name || a.name}</option>)}
+              {a.display_name || a.name}
+            </option>)}
           </select>
         </div>
-        <div className="row">
-          <label>工作流</label>
-          <div className="wf-tabs">
+        <div className="field">
+          <label>{t('workflow')}</label>
+          <div className="wf-tabs" role="tablist">
             {WORKFLOWS.map(w => (
-              <button key={w.id} title={w.desc}
+              <button key={w.id} role="tab" aria-selected={workflow === w.id}
                 className={workflow === w.id ? 'wf-tab active' : 'wf-tab'}
-                onClick={() => setWorkflow(w.id)}>{w.label}</button>
+                onClick={() => setWorkflow(w.id)}>
+                <span className="wf-name">{t(w.key)}</span>
+                <span className="wf-desc">{t(w.descKey)}</span>
+              </button>
             ))}
           </div>
         </div>
-        <div className="row two-col">
-          <div>
-            <label>标题</label>
-            <input value={title} onChange={e => setTitle(e.target.value)}
-              placeholder="例如：easy_rsa" />
+        <div className="two-col">
+          <div className="field">
+            <label htmlFor="ch-title">{t('title')}</label>
+            <input id="ch-title" value={title} onChange={e => setTitle(e.target.value)}
+              placeholder={t('title_ph')} />
           </div>
-          <div>
-            <label>类别</label>
-            <select value={category} onChange={e => setCategory(e.target.value)}>
-              {['Web', 'Pwn', 'Reverse', 'Crypto', 'Misc', 'Forensics', 'Blockchain'].map(c =>
-                <option key={c}>{c}</option>)}
+          <div className="field">
+            <label htmlFor="ch-cat">{t('category')}</label>
+            <select id="ch-cat" value={category}
+              onChange={e => setCategory(e.target.value)}>
+              {['Web', 'Pwn', 'Reverse', 'Crypto', 'Misc', 'Forensics', 'Blockchain']
+                .map(c => <option key={c}>{c}</option>)}
             </select>
           </div>
         </div>
-        <div className="row">
-          <label>描述</label>
-          <textarea rows={4} value={description}
+        <div className="field">
+          <label htmlFor="ch-desc">{t('description')}</label>
+          <textarea id="ch-desc" rows={4} value={description}
             onChange={e => setDescription(e.target.value)}
-            placeholder="题目描述、已知参数（如 n, e, c）、提示等" />
+            placeholder={t('description_ph')} />
         </div>
-        <div className="row">
-          <label>附件路径（相对 challenge_files）</label>
-          <input value={attachment} onChange={e => setAttachment(e.target.value)}
-            placeholder="例如：chall.zip / 留空" />
+        <div className="field">
+          <label htmlFor="ch-att">{t('attachment')}</label>
+          <input id="ch-att" value={attachment}
+            onChange={e => setAttachment(e.target.value)}
+            placeholder={t('attachment_ph')} />
         </div>
-        <div className="row">
-          <label>额外提示（可选）</label>
-          <input value={hint} onChange={e => setHint(e.target.value)}
-            placeholder="给 Agent 的补充说明" />
+        <div className="field">
+          <label htmlFor="ch-hint">{t('extra_hint')}</label>
+          <input id="ch-hint" value={hint} onChange={e => setHint(e.target.value)}
+            placeholder={t('extra_hint_ph')} />
         </div>
-        <button className="btn-primary" onClick={start} disabled={running || !title.trim()}>
-          {running ? '运行中…' : '启动'}
+        <button className="btn btn-primary" onClick={start}
+          disabled={running || !title.trim()}>
+          {running ? t('running') : t('start')}
         </button>
-      </div>
+      </section>
 
-      <div className="run-log panel">
-        <h2>执行日志</h2>
-        {flag && (
-          <div className="flag-banner">
-            🚩 FLAG: <code>{flag}</code>
-          </div>
-        )}
-        <div className="log" ref={logRef}>
-          {events.length === 0 && <div className="log-empty">填写题目信息后点“启动”</div>}
+      <section className="run-log panel" aria-label={t('exec_log')}>
+        <h2 className="panel-title">{t('exec_log')}</h2>
+        {flag && <div className="flag-banner">{t('flag_label')}: {flag}</div>}
+        <div className="log" ref={logRef} aria-live="polite">
+          {events.length === 0 && <div className="log-empty">{t('log_empty')}</div>}
           {events.map((ev, i) => <EventView key={i} ev={ev} />)}
         </div>
-      </div>
+      </section>
     </div>
   )
 }
 
 function EventView({ ev }) {
-  if (ev.type === 'step') return <div className="ev-step">── 第 {ev.step} 步 ──</div>
-  if (ev.type === 'start') return <div className="ev-start">已加载 Agent「{ev.agent}」，工具: {ev.tools.join(', ') || '无'}</div>
-  if (ev.type === 'token') return <div className="ev-text"><ReactMarkdownish text={ev.text} /></div>
-  if (ev.type === 'tool_call') return <div className="ev-tool">🔧 调用 {ev.tool} <code>{JSON.stringify(ev.args).slice(0, 200)}</code></div>
+  const { t } = useI18n()
+  if (ev.type === 'step') return <div className="ev-step">{t('step')} {ev.step}</div>
+  if (ev.type === 'nudge') return <div className="ev-nudge">↻ keep going</div>
+  if (ev.type === 'start') {
+    return <div className="ev-start">{ev.agent} · {ev.tools.join(', ') || '—'}</div>
+  }
+  if (ev.type === 'token') return <Markdown text={ev.text} />
+  if (ev.type === 'tool_call') {
+    return <div className="ev-tool">▸ {ev.tool} <code>{JSON.stringify(ev.args).slice(0, 200)}</code></div>
+  }
   if (ev.type === 'tool_result') {
     const s = typeof ev.result === 'string' ? ev.result : JSON.stringify(ev.result)
-    return <details className="ev-tool-result"><summary>📥 {ev.tool} 结果</summary><pre>{s.slice(0, 2000)}</pre></details>
+    return (
+      <details className="ev-tool-result">
+        <summary>▸ {ev.tool} {t('result')}</summary>
+        <pre>{s.slice(0, 2000)}</pre>
+      </details>
+    )
   }
-  if (ev.type === 'final') return <div className="ev-final"><ReactMarkdownish text={ev.text || '(无输出)'} /></div>
-  if (ev.type === 'error') return <div className="ev-error">⚠ {ev.message}</div>
+  if (ev.type === 'final') return (
+    <div className="ev-final"><Markdown text={ev.text || '—'} /></div>
+  )
+  if (ev.type === 'error') return <div className="ev-error">{t('error')}: {ev.message}</div>
   return null
 }
 
-// 极简 markdown 渲染（代码块 + 加粗 + 标题）
-function ReactMarkdownish({ text }) {
+// Minimal markdown: code blocks, inline code, headings, bold
+function Markdown({ text }) {
   const html = text
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/```(\w*)\n([\s\S]*?)```/g, (_, l, c) => `<pre class="code"><code>${c}</code></pre>`)
+    .replace(/```(\w*)\n([\s\S]*?)```/g,
+      (_, l, c) => `<pre class="code"><code>${c}</code></pre>`)
     .replace(/`([^`\n]+)`/g, '<code>$1</code>')
     .replace(/^### (.*)$/gm, '<h4>$1</h4>')
     .replace(/^## (.*)$/gm, '<h3>$1</h3>')
