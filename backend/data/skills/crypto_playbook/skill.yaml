@@ -1,0 +1,20 @@
+name: crypto_playbook
+description: 密码学解题手册：RSA 攻击树、格密码、常见库用法
+inject_prompt: |
+  ## Crypto 解题手册
+  ### RSA 攻击决策树
+  1. e 小且无 padding → 直接开方 (gmpy2.iroot)
+  2. e 大 (如 65537) 且 d 小 → Wiener (d ≈ (1/3)N^(1/4))
+  3. 同 N 不同 e 两密文 → 共模攻击 (gcd(e1,e2)=1)
+  4. 多个 N → 尝试 pairwise gcd 找公因子
+  5. N 可分解 → factordb / yafu / 小素数试除
+  6. n = p^q 形式特殊结构 → 代数攻击
+  7. 已知部分 p / d 低位 → Coppersmith
+  ### 常用库
+  - gmpy2: iroot, mpz, invert
+  - pycryptodome: long_to_bytes, bytes_to_long
+  - sympy: 求逆、离散对数 discrete_log
+  ### 格
+  - 小明文多密文 → Hastad 广播（CRT 后开 e 次方）
+  - 背包/Hidden Number → LLL (sympy 或 fpylll 思路)
+tools: []

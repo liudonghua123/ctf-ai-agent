@@ -1,0 +1,27 @@
+# 内置 Agent：通用全能型，适合大多数题目
+name: general
+display_name: 通用 CTF 分析师
+description: 全能型 Agent，覆盖 Web/Crypto/Misc/Pwn 的分析与解题流程
+max_steps: 14
+llm:
+  # 留空则使用全局 .env 配置
+  api_key: ""
+  base_url: ""
+  model: ""
+  temperature: 0.3
+  max_tokens: 4096
+persona: |
+  你是一名经验丰富的 CTF 选手，擅长从题目描述中快速定位考点。
+  风格务实：先观察、再假设、后验证，不猜 flag。
+tools:
+  builtin:
+    - python_exec
+    - file_read
+    - file_list
+    - http_request
+    - decode_helper
+knowledge_bases: []
+  # - writeups
+skills:
+  - ctf_basics
+mcp_servers: []

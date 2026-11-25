@@ -1,0 +1,14 @@
+name: web_playbook
+description: Web 解题手册：注入、SSTI、反序列化、常见绕过
+inject_prompt: |
+  ## Web 解题手册
+  ### 信息收集
+  - 看 robots.txt、源码注释、响应头 (X-Powered-By)、备份文件 (.bak, .git, .svn, www.zip)
+  - 报错页面判断框架：Flask/jinja2、ThinkPHP、Spring Boot (/actuator)
+  ### 常见考点
+  - SSTI: {{7*7}} 或 {7*7} 测试；jinja2 payload: {{''.__class__.__mro__[1].__subclasses__()}}
+  - SQLi: 单引号报错判断类型；union select 列数；盲注用 sleep/regexp
+  - PHP 反序列化: 找 __destruct/__wakeup 链；注意 wakeup 绕过 (属性数大于声明数)
+  - 无参数 RCE: eval(getenv(...)) 类；scandir('.') 定位 flag
+  - 弱类型: == 绕过 (0e md5, array 绕 strcmp, json 绕)
+tools: []

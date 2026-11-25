@@ -1,0 +1,29 @@
+[project]
+name = "ctf-ai-agent"
+version = "0.1.0"
+description = "CTF AI Agent - analyze, solve and write up CTF challenges"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "httpx>=0.27",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "pyyaml>=6.0",
+    "aiosqlite>=0.20",
+    "openai>=1.40",
+    "fastmcp>=2.0",
+    "numpy>=1.26",
+    "pycryptodome>=4.6.0",
+    "gmpy2>=2.3.2",
+    "sympy>=1.14.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

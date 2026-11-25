@@ -1,0 +1,20 @@
+name: ctf_basics
+description: CTF 基础知识：常见编码、隐写入口、flag 格式判断
+inject_prompt: |
+  ## CTF 基础检查清单
+  - 拿到字符串先判断编码：base64 (A-Za-z0-9+/=)、hex、base32、base58、url 编码、Unicode
+  - 拿到文件先 file 识别类型：binwalk/foremost 分离隐写，zsteg (png lsbs)、steghide (jpg，常带密码)
+  - flag 格式常见 flag{...}、ctf{...}、NSSCTF{...} 等，注意大小写变形
+  - Misc 杂项常见：零宽字符、snow 隐写、音频 LSB (stegsolve)、压缩包伪加密/爆破
+  - 密码学数字先看位数：十进制 300+ 位大概率 RSA 的 N；128 位 hex 可能是 MD5
+tools:
+  - name: smart_decode
+    description: "Advanced decoder: base64/32/58, hex, url, and extracts flag candidates."
+    parameters:
+      type: object
+      properties:
+        data:
+          type: string
+          description: the string to decode
+      required: [data]
+    handler: handlers.py::run
