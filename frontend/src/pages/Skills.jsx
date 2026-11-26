@@ -35,6 +35,9 @@ export default function Skills() {
   const [content, setContent] = useState('')
   const [dirty, setDirty] = useState(false)
   const [editMeta, setEditMeta] = useState(null)   // modal: null | meta copy
+  const [newMeta, setNewMeta] = useState(null)     // modal: create new skill
+  const [newEntry, setNewEntry] = useState(null)   // modal: { isDir, name }
+  const [renameTo, setRenameTo] = useState(null)   // modal: new skill name
   const [showHub, setShowHub] = useState(false)
   const [hub, setHub] = useState(null)
   const [toast, setToast] = useState('')
@@ -87,10 +90,13 @@ export default function Skills() {
   }
 
   const newFile = async (isDir) => {
-    const name = window.prompt(isDir ? t('skill_new_dir') : t('skill_new_file'))
-    if (!name) return
+    setNewEntry({ isDir, name: '' })
+  }
+
+  const createEntry = async () => {
     try {
-      await skillCreateFile(sel, name, '', isDir)
+      await skillCreateFile(sel, newEntry.name, '', newEntry.isDir)
+      setNewEntry(null)
       await refreshFiles()
     } catch (e) { flash(e.response?.data?.detail || 'error') }
   }
@@ -141,11 +147,32 @@ export default function Skills() {
     setSel(null); setMeta(null); setCurFile(null); await load()
   }
 
+  const createSkill = async () => {
+    const id = newMeta.name.replace(/[^A-Za-z0-9_-]+/g, '_')
+    try {
+      await saveSkill(id, {
+        name: newMeta.display_name?.trim() || newMeta.name.trim(),
+        description: newMeta.description || '',
+        inject_prompt: newMeta.inject_prompt || '',
+      })
+      setNewMeta(null)
+      flash(t('saved'))
+      await load(id)
+    } catch (e) {
+      flash(`${t('error')}: ${e.response?.data?.detail || e.message}`)
+    }
+  }
+
   const renameSkill = async () => {
-    const nn = window.prompt(t('skill_rename'), sel)
-    if (!nn || nn === sel) return
+    setRenameTo(sel)
+  }
+
+  const doRename = async () => {
+    const nn = renameTo?.trim()
+    if (!nn || nn === sel) { setRenameTo(null); return }
     const axios = (await import('axios')).default
     await axios.post(`/api/skills/${sel}/rename`, { new_name: nn })
+    setRenameTo(null)
     setSel(null); setMeta(null); await load()
   }
 
@@ -187,11 +214,7 @@ export default function Skills() {
         <div style={{ display: 'flex', gap: 'var(--s-2)' }}>
           <button className="chip-btn" onClick={openHub}>⬇ {t('skill_hub')}</button>
           <button className="chip-btn primary" onClick={() => {
-            const name = window.prompt(t('new_skill'))
-            if (!name) return
-            saveSkill(name.replace(/[^A-Za-z0-9_-]+/g, '_'),
-              { name, description: '', inject_prompt: '' })
-              .then(() => load(name))
+            setNewMeta({ name: '', display_name: '', description: '', inject_prompt: '' })
           }}>+ {t('new_skill')}</button>
         </div>
       </div>
@@ -293,6 +316,42 @@ export default function Skills() {
         </div>
       )}
 
+      {/* new file/dir modal */}
+      {newEntry && (
+        <Modal title={newEntry.isDir ? t('skill_new_dir') : t('skill_new_file')}
+          onClose={() => setNewEntry(null)}
+          footer={<>
+            <button className="chip-btn" onClick={() => setNewEntry(null)}>{t('cancel')}</button>
+            <button className="chip-btn primary" onClick={createEntry}
+              disabled={!newEntry.name.trim()}>{t('create')}</button>
+          </>}>
+          <div className="field">
+            <label>{t('name')}</label>
+            <input className="input" value={newEntry.name} autoFocus
+              onKeyDown={e => e.key === 'Enter' && createEntry()}
+              onChange={e => setNewEntry({ ...newEntry, name: e.target.value })}
+              placeholder={newEntry.isDir ? 'scripts/' : 'handler.py'} />
+          </div>
+        </Modal>
+      )}
+
+      {/* rename modal */}
+      {renameTo !== null && (
+        <Modal title={t('skill_rename')} onClose={() => setRenameTo(null)}
+          footer={<>
+            <button className="chip-btn" onClick={() => setRenameTo(null)}>{t('cancel')}</button>
+            <button className="chip-btn primary" onClick={doRename}
+              disabled={!renameTo.trim() || renameTo.trim() === sel}>{t('confirm')}</button>
+          </>}>
+          <div className="field">
+            <label>{t('name')}</label>
+            <input className="input" value={renameTo} autoFocus
+              onKeyDown={e => e.key === 'Enter' && doRename()}
+              onChange={e => setRenameTo(e.target.value)} />
+          </div>
+        </Modal>
+      )}
+
       {/* meta edit modal (maximizable) */}
       {editMeta && (
         <Modal title={`${t('mcp_edit')}: ${sel}`} onClose={() => setEditMeta(null)} wide
@@ -318,6 +377,44 @@ export default function Skills() {
               <textarea className="code-editor" style={{ minHeight: 180 }}
                 value={editMeta.inject_prompt || ''}
                 onChange={e => setEditMeta({ ...editMeta, inject_prompt: e.target.value })} />
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* new skill modal (maximizable) */}
+      {newMeta && (
+        <Modal title={t('new_skill')} onClose={() => setNewMeta(null)} wide
+          footer={<>
+            <button className="chip-btn" onClick={() => setNewMeta(null)}>{t('cancel')}</button>
+            <button className="chip-btn primary" onClick={createSkill} disabled={!newMeta.name.trim()}>
+              {t('create')}
+            </button>
+          </>}>
+          <div className="frm">
+            <div className="frm-row">
+              <div className="field">
+                <label>{t('name')} (id)</label>
+                <input className="input" value={newMeta.name} autoFocus
+                  placeholder="my_skill"
+                  onChange={e => setNewMeta({ ...newMeta, name: e.target.value })} />
+              </div>
+              <div className="field">
+                <label>{t('display_name')}</label>
+                <input className="input" value={newMeta.display_name || ''}
+                  onChange={e => setNewMeta({ ...newMeta, display_name: e.target.value })} />
+              </div>
+            </div>
+            <div className="field">
+              <label>Description</label>
+              <input className="input" value={newMeta.description || ''}
+                onChange={e => setNewMeta({ ...newMeta, description: e.target.value })} />
+            </div>
+            <div className="field">
+              <label>{t('injected_prompt')}</label>
+              <textarea className="code-editor" style={{ minHeight: 140 }}
+                value={newMeta.inject_prompt || ''}
+                onChange={e => setNewMeta({ ...newMeta, inject_prompt: e.target.value })} />
             </div>
           </div>
         </Modal>

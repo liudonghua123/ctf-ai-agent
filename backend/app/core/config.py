@@ -26,6 +26,9 @@ class Settings(BaseSettings):
 
     kb_top_k: int = 5
 
+    # Default env injected into stdio MCP servers (JSON object string)
+    mcp_default_env: dict = {}
+
 
 settings = Settings()
 

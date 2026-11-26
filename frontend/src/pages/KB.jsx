@@ -3,6 +3,7 @@ import { useI18n } from '../i18n'
 import {
   listKBs, kbRead, kbWrite, kbDelete, kbCreate, kbDeleteLib,
 } from '../api'
+import Modal from '../components/Modal.jsx'
 
 const IcoLib = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
@@ -20,6 +21,8 @@ export default function KB() {
   const [dirty, setDirty] = useState(false)
   const [showNew, setShowNew] = useState(false)
   const [newName, setNewName] = useState('')
+  const [newFileModal, setNewFileModal] = useState(false)
+  const [newFileName, setNewFileName] = useState('')
   const [toast, setToast] = useState('')
 
   const load = async () => {
@@ -54,11 +57,12 @@ export default function KB() {
     setLib(newName.trim())
   }
 
-  const newFile = async () => {
-    const name = window.prompt(t('kb_new_file'))
-    if (!name) return
-    const safe = name.replace(/[^\w\u4e00-\u9fff.-]+/g, '_') + (name.endsWith('.md') ? '' : '.md')
+  const createNewFile = async () => {
+    if (!newFileName.trim()) return
+    const safe = newFileName.trim().replace(/[^\w\u4e00-\u9fff.-]+/g, '_')
+      + (newFileName.trim().endsWith('.md') ? '' : '.md')
     await kbWrite(lib, safe, '')
+    setNewFileModal(false); setNewFileName('')
     await load(); openFile(safe)
   }
 
@@ -102,7 +106,7 @@ export default function KB() {
         <div className="detail-panel" style={{ marginTop: 'var(--s-6)' }}>
           <div className="panel-toolbar">
             <h2 style={{ flex: 1 }}>{sel.name}</h2>
-            <button className="chip-btn" onClick={newFile}>+ {t('kb_new_file')}</button>
+            <button className="chip-btn" onClick={() => { setNewFileModal(true); setNewFileName('') }}>+ {t('kb_new_file')}</button>
             <button className="chip-btn danger" onClick={delLib}>{t('kb_delete_lib')}</button>
           </div>
 
@@ -140,21 +144,34 @@ export default function KB() {
       )}
 
       {showNew && (
-        <div className="modal-backdrop" onClick={() => setShowNew(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3>{t('new_kb')}</h3>
-            <div className="field">
-              <label>{t('kb_name')}</label>
-              <input className="input" value={newName}
-                onChange={e => setNewName(e.target.value)}
-                placeholder={t('kb_name_ph')} autoFocus />
-            </div>
-            <div className="modal-actions">
-              <button className="chip-btn" onClick={() => setShowNew(false)}>{t('cancel')}</button>
-              <button className="chip-btn primary" onClick={createLib}>{t('create')}</button>
-            </div>
+        <Modal title={t('new_kb')} onClose={() => setShowNew(false)}
+          footer={<>
+            <button className="chip-btn" onClick={() => setShowNew(false)}>{t('cancel')}</button>
+            <button className="chip-btn primary" onClick={createLib} disabled={!newName.trim()}>{t('create')}</button>
+          </>}>
+          <div className="field">
+            <label>{t('kb_name')}</label>
+            <input className="input" value={newName}
+              onChange={e => setNewName(e.target.value)}
+              placeholder={t('kb_name_ph')} autoFocus />
           </div>
-        </div>
+        </Modal>
+      )}
+
+      {newFileModal && (
+        <Modal title={t('kb_new_file')} onClose={() => setNewFileModal(false)}
+          footer={<>
+            <button className="chip-btn" onClick={() => setNewFileModal(false)}>{t('cancel')}</button>
+            <button className="chip-btn primary" onClick={createNewFile} disabled={!newFileName.trim()}>{t('create')}</button>
+          </>}>
+          <div className="field">
+            <label>{t('kb_name')}</label>
+            <input className="input" value={newFileName}
+              onChange={e => setNewFileName(e.target.value)}
+              placeholder="notes.md" autoFocus
+              onKeyDown={e => e.key === 'Enter' && createNewFile()} />
+          </div>
+        </Modal>
       )}
 
       {toast && (

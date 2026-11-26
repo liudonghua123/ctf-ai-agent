@@ -17,6 +17,8 @@ dependencies = [
     "pycryptodome>=4.6.0",
     "gmpy2>=2.3.2",
     "sympy>=1.14.0",
+    "agentscope>=2.0.12",
+    "python-multipart>=0.0.34",
 ]
 
 [dependency-groups]

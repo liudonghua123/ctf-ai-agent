@@ -7,12 +7,25 @@ const IcoSrv = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
 )
 
-const emptyForm = { name: '', type: 'stdio', command: '', argsText: '', url: '', headersText: '' }
+const emptyForm = { name: '', type: 'stdio', command: '', argsText: '', url: '', headersText: '', envText: '' }
 
 const parseHeaders = (text) => {
   const out = {}
   for (const line of (text || '').split('\n')) {
     const i = line.indexOf(':')
+    if (i > 0) {
+      const k = line.slice(0, i).trim()
+      const v = line.slice(i + 1).trim()
+      if (k) out[k] = v
+    }
+  }
+  return out
+}
+
+const parseEnv = (text) => {
+  const out = {}
+  for (const line of (text || '').split('\n')) {
+    const i = line.indexOf('=')
     if (i > 0) {
       const k = line.slice(0, i).trim()
       const v = line.slice(i + 1).trim()
@@ -48,6 +61,8 @@ export default function Mcp() {
         argsText: (s.args || []).join('\n'),
         headersText: Object.entries(s.headers || {})
           .map(([k, v]) => `${k}: ${v}`).join('\n'),
+        envText: Object.entries(s.env || {})
+          .map(([k, v]) => `${k}=${v}`).join('\n'),
       })
     } else {
       setEditingName(null)
@@ -64,6 +79,7 @@ export default function Mcp() {
       command: f.type === 'stdio' ? f.command : null,
       args: f.argsText.split('\n').map(x => x.trim()).filter(Boolean),
       headers: f.type !== 'stdio' ? parseHeaders(f.headersText) : {},
+      env: f.type === 'stdio' ? parseEnv(f.envText) : {},
     })
     setEdit(null); await load(); flash(t('saved'))
   }
@@ -226,6 +242,13 @@ export default function Mcp() {
                     value={edit.argsText}
                     placeholder={'-m\nmcp_server_fetch'}
                     onChange={e => setEdit({ ...edit, argsText: e.target.value })} />
+                </div>
+                <div className="field">
+                  <label>{t('mcp_env')}</label>
+                  <textarea className="code-editor" style={{ minHeight: 72 }}
+                    value={edit.envText}
+                    placeholder={'API_KEY=sk-...\nDEBUG=1'}
+                    onChange={e => setEdit({ ...edit, envText: e.target.value })} />
                 </div>
               </>
             )}

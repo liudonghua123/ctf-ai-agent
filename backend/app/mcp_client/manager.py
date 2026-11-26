@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from ..core.config import DATA_DIR
+from ..core.config import DATA_DIR, settings
 
 MCP_CONFIG_PATH = DATA_DIR / "mcp.json"
 
@@ -84,8 +84,10 @@ class MCPManager:
         elif "url" in cfg:
             transport = StreamableHttpTransport(cfg["url"], headers=headers)
         else:
-            transport = StdioTransport(cfg["command"], cfg.get("args", []),
-                                       env=cfg.get("env") or None)
+            transport = StdioTransport(
+                cfg["command"], cfg.get("args", []),
+                env={**settings.mcp_default_env, **(cfg.get("env") or {})}
+                if (cfg.get("env") or settings.mcp_default_env) else None)
         client = Client(transport)
         self._clients[name] = client
         return client

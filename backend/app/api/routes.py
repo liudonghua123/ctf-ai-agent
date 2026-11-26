@@ -4,12 +4,14 @@ from __future__ import annotations
 import asyncio
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ..agents.engine import (AgentRunner, list_agent_configs, load_agent_config,
-                             save_agent_config)
+from ..agents.engine import (AgentRunner, list_agent_configs,
+                             load_agent_config, save_agent_config)
+from ..agents.agentscope_rt import get_runner
+from ..core.config import CONFIGS_DIR
 from ..kb.store import KnowledgeBase, KB_DIR
 from ..skills.loader import SkillLoader
 from ..skills.hub_data import PWN_SKILL_YAML, FOR_SKILL_YAML, _b64
@@ -43,6 +45,27 @@ async def list_agents():
     return {"agents": list_agent_configs(), "available_skills": [s["name"] for s in skills.list_skills()],
             "available_kbs": [k["name"] for k in kb.list_kbs()],
             "available_mcp": list(load_mcp_config().get("mcpServers", {}).keys())}
+
+
+class AgentCreateModel(BaseModel):
+    name: str
+
+
+@api.post("/agents")
+async def create_agent(m: AgentCreateModel):
+    import re as _re
+    if not _re.fullmatch(r"[A-Za-z0-9_-]+", m.name):
+        raise HTTPException(400, "invalid agent name")
+    path = CONFIGS_DIR / "agents" / f"{m.name}.yaml"
+    if path.exists():
+        raise HTTPException(400, "agent already exists")
+    save_agent_config(m.name, {
+        "name": m.name, "display_name": m.name, "description": "",
+        "max_steps": 12, "llm": {}, "persona": "",
+        "tools": {"builtin": ["python_exec", "decode_helper"]},
+        "knowledge_bases": [], "skills": [], "mcp_servers": [],
+    })
+    return {"created": m.name}
 
 
 @api.get("/agents/{name}")
@@ -286,6 +309,7 @@ async def get_mcp():
             "url": scfg.get("url"),
             "command": scfg.get("command"),
             "args": scfg.get("args", []),
+            "env": scfg.get("env", {}),
             "headers": scfg.get("headers", {}),
             "enabled": name not in disabled,
         })
@@ -298,6 +322,7 @@ class MCPServerModel(BaseModel):
     url: str | None = None
     command: str | None = None
     args: list[str] = []
+    env: dict[str, str] = {}
     headers: dict[str, str] = {}
 
 
@@ -313,6 +338,8 @@ async def put_mcp(m: MCPServerModel):
         if not m.command:
             raise HTTPException(400, "command required for stdio server")
         entry = {"command": m.command, "args": m.args}
+        if m.env:
+            entry["env"] = m.env
     cfg = load_mcp_config()
     cfg.setdefault("mcpServers", {})[m.name] = entry
     cfg["disabled"] = [d for d in cfg.get("disabled", []) if d != m.name]
@@ -385,6 +412,14 @@ class RunModel(BaseModel):
     workflow: str = "analyze"  # analyze | solve | writeup
     challenge: dict = {}
     hint: str | None = None
+    # per-run overrides (from composer): skills / mcp servers / kbs
+    skills: list[str] | None = None
+    mcp_servers: list[str] | None = None
+    knowledge_bases: list[str] | None = None
+    # human-in-the-loop: require approval before each tool call
+    approval_gate: bool = False
+    # agentscope resume: approval answers for a pending confirm
+    resume: dict | None = None
 
 
 @api.post("/run")
@@ -395,20 +430,34 @@ async def run_agent(m: RunModel):
         raise HTTPException(404, f"agent not found: {m.agent}")
     if m.workflow not in ("analyze", "solve", "writeup"):
         raise HTTPException(400, "invalid workflow")
-    runner = AgentRunner(cfg, kb, skills, MCPManager.instance())
-    sid = await db.create_session(m.agent, m.workflow, m.challenge)
-    # auto-name from first message content (title or description)
-    auto = (m.challenge.get("title")
-            or (m.challenge.get("description") or "").strip()[:40]
-            or "untitled")
-    await db.rename_session(sid, auto)
+    # apply per-run overrides (session-level customization)
+    if m.skills is not None:
+        cfg["skills"] = m.skills
+    if m.mcp_servers is not None:
+        cfg["mcp_servers"] = m.mcp_servers
+    if m.knowledge_bases is not None:
+        cfg["knowledge_bases"] = m.knowledge_bases
+    runner = get_runner(cfg, kb, skills, MCPManager.instance())
+    if not m.resume:
+        sid = await db.create_session(m.agent, m.workflow, m.challenge)
+        # auto-name from first message content (title or description)
+        auto = (m.challenge.get("title")
+                or (m.challenge.get("description") or "").strip()[:40]
+                or "untitled")
+        await db.rename_session(sid, auto)
+    else:
+        sid = m.resume.get("sid", "")
 
     async def gen():
         yield f"event: session\ndata: {json.dumps({'sid': sid})}\n\n"
         collected: list[dict] = []
         final_text, flag = "", None
         try:
-            async for ev in runner.run(m.workflow, m.challenge, m.hint):
+            async for ev in runner.run(
+                    m.workflow, m.challenge, m.hint,
+                    approval_gate=m.approval_gate,
+                    approved_event=m.resume.get("event")
+                    if m.resume else None):
                 if ev["type"] == "final":
                     final_text, flag = ev.get("text", ""), ev.get("flag")
                 collected.append(ev)
@@ -437,3 +486,13 @@ async def list_challenge_files():
             items.append({"path": str(p.relative_to(CHALLENGE_FILES_DIR)),
                           "size": p.stat().st_size})
     return {"files": items}
+
+
+@api.post("/challenge-files/upload")
+async def upload_challenge_file(file: "UploadFile"):
+    """Upload a challenge attachment (composer drag-drop / paste)."""
+    import re as _re
+    safe = _re.sub(r"[^\w.\-\u4e00-\u9fff]+", "_", file.filename or "file")
+    dest = CHALLENGE_FILES_DIR / safe
+    dest.write_bytes(await file.read())
+    return {"path": safe, "size": dest.stat().st_size}

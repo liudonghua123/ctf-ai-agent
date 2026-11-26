@@ -6,6 +6,7 @@ const api = axios.create({ baseURL: '/api' })
 export const getAgents = () => api.get('/agents')
 export const getAgent = (name) => api.get(`/agents/${name}`)
 export const saveAgent = (name, cfg) => api.put(`/agents/${name}`, cfg)
+export const createAgent = (name) => api.post('/agents', { name })
 
 export const listKBs = () => api.get('/kb')
 export const kbAdd = (m) => api.post('/kb/add', m)
@@ -41,6 +42,13 @@ export const deleteSession = (sid) => api.delete(`/sessions/${sid}`)
 export const clearAgentSessions = (agent) => api.post(`/sessions/clear/${agent}`)
 
 export const listChallengeFiles = () => api.post('/challenge-files')
+export const uploadChallengeFile = (file) => {
+  const fd = new FormData()
+  fd.append('file', file)
+  return api.post('/challenge-files/upload', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
 
 // SSE run: returns event subscription
 export function runAgent(m, onEvent, onDone, onError) {

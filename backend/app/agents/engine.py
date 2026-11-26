@@ -159,7 +159,8 @@ class AgentRunner:
 
     # -- main loop ----------------------------------------------------------
     async def run(self, workflow: str, challenge: dict, user_hint: str | None = None,
-                  on_event: AsyncIterator | None = None) -> AsyncIterator[dict]:
+                  approval_gate: bool = False,
+                  approved_event: dict | None = None) -> AsyncIterator[dict]:
         """Async generator yielding events:
         {type: step|tool_call|tool_result|token|final, ...}
         """
