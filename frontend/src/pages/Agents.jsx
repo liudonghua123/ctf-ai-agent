@@ -20,7 +20,7 @@ export default function Agents() {
   const [msg, setMsg] = useState('')
 
   const load = () => getAgents().then(r => { setAgents(r.data.agents); setMeta(r.data) })
-  useEffect(load, [])
+  useEffect(() => { load() }, [])
 
   const open = async (name) => {
     const full = await getAgent(name)

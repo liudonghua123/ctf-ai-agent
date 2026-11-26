@@ -76,24 +76,53 @@ export default function App() {
             </svg>
           </button>
           {settings && (
-            <div className="settings-pop">
+            <div className="settings-pop" role="dialog" aria-label="Settings">
               <div className="settings-row">
-                <span className="settings-label">{t('theme')}</span>
-                <div className="seg" role="radiogroup">
+                <span className="settings-label">
+                  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="M8 2v2M8 12v2M2 8h2M12 8h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.5" />
+                  </svg>
+                  {t('theme')}
+                </span>
+                <div className="seg" role="radiogroup" aria-label={t('theme')}>
                   {['system', 'light', 'dark'].map(m => (
                     <button key={m} className={mode === m ? 'on' : ''}
-                      onClick={() => setMode(m)}>
+                      onClick={() => setMode(m)} role="radio" aria-checked={mode === m}>
+                      {m === 'system' && (
+                        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                          <rect x="2" y="3" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+                          <path d="M5 13h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                        </svg>
+                      )}
+                      {m === 'light' && (
+                        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                          <circle cx="8" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.5" />
+                          <path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M12.6 3.4l-1 1M4.4 11.6l-1 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                        </svg>
+                      )}
+                      {m === 'dark' && (
+                        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                          <path d="M13.5 9.5A6 6 0 0 1 6.5 2.5a6 6 0 1 0 7 7z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                        </svg>
+                      )}
                       {t(`theme_${m}`)}
                     </button>
                   ))}
                 </div>
               </div>
               <div className="settings-row">
-                <span className="settings-label">{t('language')}</span>
-                <div className="seg" role="radiogroup">
+                <span className="settings-label">
+                  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M2 8h12M8 2c-3.5 3.8-3.5 8.2 0 12M8 2c3.5 3.8 3.5 8.2 0 12" stroke="currentColor" strokeWidth="1.5" />
+                  </svg>
+                  {t('language')}
+                </span>
+                <div className="seg" role="radiogroup" aria-label={t('language')}>
                   {['en', 'zh'].map(l => (
                     <button key={l} className={lang === l ? 'on' : ''}
-                      onClick={() => setLang(l)}>
+                      onClick={() => setLang(l)} role="radio" aria-checked={lang === l}>
                       {l === 'en' ? 'English' : '中文'}
                     </button>
                   ))}

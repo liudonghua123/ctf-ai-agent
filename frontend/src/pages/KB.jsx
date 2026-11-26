@@ -11,7 +11,7 @@ export default function KB() {
   const [msg, setMsg] = useState('')
 
   const load = () => listKBs().then(r => setKbs(r.data.kbs))
-  useEffect(load, [])
+  useEffect(() => { load() }, [])
 
   const add = async () => {
     if (!form.kb || !form.title || !form.content) { setMsg(t('required')); return }

@@ -137,26 +137,46 @@ code, pre, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-
 /* dropdown settings */
 .settings-pop {
   position: absolute; right: var(--s-4); top: calc(100% + var(--s-2));
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius-md); box-shadow: var(--shadow);
-  padding: var(--s-4); min-width: 240px; z-index: var(--z-overlay);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow);
+  padding: var(--s-2); min-width: 260px; z-index: var(--z-overlay);
   animation: pop-in 240ms var(--ease);
 }
 @keyframes pop-in {
   from { opacity: 0; transform: translateY(-8px) scale(0.98); }
   to { opacity: 1; transform: none; }
 }
-.settings-row { display: flex; gap: var(--s-2); align-items: center; margin-top: var(--s-3); }
-.settings-row:first-child { margin-top: 0; }
-.settings-label { font-size: 12px; color: var(--text-2); width: 72px; flex-shrink: 0; font-weight: 600; }
-.seg { display: flex; flex: 1; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
-.seg button {
-  flex: 1; padding: 6px 8px; font-size: 12px; border: none; cursor: pointer;
-  background: transparent; color: var(--text-2); font-family: inherit; font-weight: 600;
-  transition: all var(--dur-fast) var(--ease);
-  white-space: nowrap; font-weight: 600;
+.settings-row {
+  display: flex; gap: var(--s-3); align-items: center;
+  padding: var(--s-2) var(--s-2);
 }
-.seg button.on { background: var(--accent); color: var(--accent-contrast); }
+.settings-row + .settings-row { border-top: 1px solid var(--border); }
+.settings-label {
+  display: flex; align-items: center; gap: var(--s-2);
+  font-size: 12px; color: var(--text-2); width: 92px; flex-shrink: 0;
+  font-weight: 600;
+}
+.settings-label svg { width: 14px; height: 14px; opacity: 0.7; }
+.seg {
+  display: flex; flex: 1; gap: 2px;
+  background: var(--surface-2); border-radius: var(--radius-sm);
+  padding: 2px;
+}
+.seg button {
+  flex: 1; padding: 6px 10px; font-size: 12px; border: none; cursor: pointer;
+  background: transparent; color: var(--text-2); font-family: inherit;
+  white-space: nowrap; font-weight: 600; border-radius: 6px;
+  transition: all var(--dur-fast) var(--ease);
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+}
+.seg button svg { width: 12px; height: 12px; }
+.seg button:hover { color: var(--text); }
+.seg button.on {
+  background: var(--accent); color: var(--accent-contrast);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
 
 /* ---------- Mobile drawer nav ---------- */
 .drawer-backdrop {
@@ -168,6 +188,8 @@ code, pre, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-
 [data-theme='light'] .drawer-backdrop { background: rgba(255, 255, 255, 0.8); }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 .drawer {
+  position: relative;
+  z-index: calc(var(--z-overlay) + 1);
   display: flex; flex-direction: column; gap: var(--s-2);
   padding: var(--s-9) var(--s-6);
 }

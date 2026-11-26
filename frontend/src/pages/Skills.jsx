@@ -8,7 +8,7 @@ export default function Skills() {
   const [sel, setSel] = useState(null)
 
   const load = () => listSkills().then(r => setSkills(r.data.skills))
-  useEffect(load, [])
+  useEffect(() => { load() }, [])
 
   return (
     <div>
