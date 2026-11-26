@@ -5,13 +5,7 @@ import {
   uploadChallengeFile,
 } from '../api'
 import { useI18n } from '../i18n/index.jsx'
-
-const WORKFLOWS = [
-  { id: 'analyze', key: 'wf_analyze' },
-  { id: 'solve', key: 'wf_solve' },
-  { id: 'writeup', key: 'wf_writeup' },
-]
-const CATEGORIES = ['Web', 'Pwn', 'Reverse', 'Crypto', 'Misc', 'Forensics', 'Blockchain']
+import Modal from '../components/Modal.jsx'
 
 const Chev = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -39,9 +33,7 @@ export default function Run() {
 
   // composer state
   const [agent, setAgent] = useState('general')
-  const [workflow, setWorkflow] = useState('analyze')
-  const [title, setTitle] = useState('')
-  const [category, setCategory] = useState('Misc')
+  const [workflow, setWorkflow] = useState('solve')
   const [description, setDescription] = useState('')
   const [hint, setHint] = useState('')
   const [attachments, setAttachments] = useState([])  // [{path,size}]
@@ -106,9 +98,7 @@ export default function Run() {
     const { data } = await getSession(sid)
     setActiveMsgs(data)
     if (data.challenge) {
-      setAgent(data.agent); setWorkflow(data.workflow)
-      setTitle(data.challenge.title || '')
-      setCategory(data.challenge.category || 'Misc')
+      setAgent(data.agent); setWorkflow(data.workflow || 'solve')
       setDescription(data.challenge.description || '')
       setAttachments(data.challenge.attachment
         ? [{ path: data.challenge.attachment }] : [])
@@ -118,9 +108,9 @@ export default function Run() {
   const newDraft = () => {
     setActive('draft'); setActiveMsgs(null)
     setLiveEvents([]); setFlag(null); setHitl(null)
-    setTitle(''); setDescription(''); setHint('')
+    setDescription(''); setHint('')
     setAttachments([]); setUsage({ input: 0, output: 0 }); setElapsed(null)
-    setDraftTitle('')
+    setDraftTitle(''); setOverrides({}); setApprovalGate(false)
   }
 
   const doRename = async (s) => {
@@ -164,16 +154,17 @@ export default function Run() {
   // run ----------------------------------------------------------------
   const start = () => {
     if (running) return
-    if (!title.trim() && !description.trim()) return
+    if (!description.trim()) return
     setLiveEvents([]); setFlag(null); setRunning(true); setActiveMsgs(null)
     setUsage({ input: 0, output: 0 }); setElapsed(null); setHitl(null)
-    setDraftTitle(title.trim() || description.trim().slice(0, 40))
+    const autoTitle = description.trim().split('\n')[0].slice(0, 60)
+    setDraftTitle(autoTitle)
     setActive('draft')
     const challenge = {
-      title, category, description,
+      title: autoTitle, description,
       attachment: attachments.map(a => a.path).join(', '),
     }
-    const o = showOpts && overrides
+    const o = overrides
     runAgent(
       {
         agent, workflow, challenge, hint: hint || null,
@@ -213,7 +204,8 @@ export default function Run() {
     setHitl(null)
     setRunning(true)
     const challenge = {
-      title, category, description,
+      title: description.trim().split('\n')[0].slice(0, 60),
+      description,
       attachment: attachments.map(a => a.path).join(', '),
     }
     runAgent(
@@ -249,6 +241,9 @@ export default function Run() {
       },
     )
   }
+
+  const activeAgentName = (agents.find(a => a.name === agent)
+    || {}).display_name || agent
 
   const activeSession = sessions.find(s => s.id === active)
   const headerTitle = running ? (draftTitle || t('new_session'))
@@ -370,87 +365,98 @@ export default function Run() {
                 ))}
               </div>
             )}
-            {showOpts && (
-              <div className="opts-panel">
-                <div className="opts-col">
-                  <b>{t('skills')}</b>
-                  {(available.skills.length ? available.skills : defaults.skills).map(s => (
-                    <label key={s} className="opt-check">
-                      <input type="checkbox"
-                        checked={(overrides.skills ?? defaults.skills).includes(s)}
-                        onChange={() => setOverrides(o => ({
-                          ...o, skills: toggleIn(o.skills ?? defaults.skills, s),
-                        }))} /> {s}
-                    </label>
-                  ))}
-                </div>
-                <div className="opts-col">
-                  <b>{t('mcp_servers')}</b>
-                  {available.mcp.map(s => (
-                    <label key={s} className="opt-check">
-                      <input type="checkbox"
-                        checked={(overrides.mcp_servers ?? defaults.mcp_servers).includes(s)}
-                        onChange={() => setOverrides(o => ({
-                          ...o, mcp_servers: toggleIn(o.mcp_servers ?? defaults.mcp_servers, s),
-                        }))} /> {s}
-                    </label>
-                  ))}
-                </div>
-                <div className="opts-col">
-                  <b>{t('knowledge_bases')}</b>
-                  {available.kbs.map(k => (
-                    <label key={k} className="opt-check">
-                      <input type="checkbox"
-                        checked={(overrides.knowledge_bases ?? defaults.knowledge_bases).includes(k)}
-                        onChange={() => setOverrides(o => ({
-                          ...o, knowledge_bases: toggleIn(o.knowledge_bases ?? defaults.knowledge_bases, k),
-                        }))} /> {k}
-                    </label>
-                  ))}
-                  <label className="opt-check" style={{ marginTop: 'var(--s-2)' }}>
-                    <input type="checkbox" checked={approvalGate}
-                      onChange={e => setApprovalGate(e.target.checked)} />
-                    🔍 {t('approval_gate')}
-                  </label>
-                </div>
-              </div>
-            )}
             <textarea id="ch-desc" ref={taRef} className="input" value={description}
               onPaste={onPaste}
               onChange={e => setDescription(e.target.value)}
               placeholder={t('description_ph')} />
-            <div className="comp-row">
-              <select className="input" style={{ flex: '0 0 140px' }} value={agent}
-                onChange={e => setAgent(e.target.value)}>
-                {agents.map(a => <option key={a.name} value={a.name}>
-                  {a.display_name || a.name}</option>)}
-              </select>
-              <select className="input" style={{ flex: '0 0 110px' }} value={workflow}
-                onChange={e => setWorkflow(e.target.value)}>
-                {WORKFLOWS.map(w => <option key={w.id} value={w.id}>{t(w.key)}</option>)}
-              </select>
-              <select className="input" style={{ flex: '0 0 110px' }} value={category}
-                onChange={e => setCategory(e.target.value)}>
-                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-              </select>
-              <input className="input" style={{ flex: 1 }} value={title}
-                onChange={e => setTitle(e.target.value)} placeholder={t('title_ph')} />
-            </div>
-            <div className="comp-row">
+            <div className="comp-bar">
               <button className="icon-btn" title={t('upload_pick')}
                 onClick={() => fileRef.current?.click()}><IcoClip /></button>
               <input ref={fileRef} type="file" multiple hidden
                 onChange={e => { addFiles([...e.target.files]); e.target.value = '' }} />
               <button className={'icon-btn' + (showOpts ? ' active' : '')}
-                title={t('session_opts')} onClick={() => setShowOpts(s => !s)}>
+                title={t('session_opts')} onClick={() => setShowOpts(true)}>
                 <IcoSliders /></button>
+              <span className="comp-hint">
+                {activeAgentName} · {t('wf_solve')}
+                {approvalGate ? ` · ${t('approval_gate')}` : ''}
+              </span>
               <span style={{ flex: 1 }} />
               <button className="btn btn-primary" onClick={start}
-                disabled={running || (!title.trim() && !description.trim())}>
+                disabled={running || !description.trim()}>
                 {running ? t('running') : t('start')}
               </button>
             </div>
           </div>
+
+          {/* session options modal (maximizable) */}
+          {showOpts && (
+            <Modal title={t('session_opts')} onClose={() => setShowOpts(false)} wide
+              footer={<>
+                <label className="opt-check" style={{ marginRight: 'auto' }}>
+                  <input type="checkbox" checked={approvalGate}
+                    onChange={e => setApprovalGate(e.target.checked)} />
+                    {t('approval_gate')}
+                </label>
+                <button className="chip-btn primary"
+                  onClick={() => setShowOpts(false)}>{t('confirm')}</button>
+              </>}>
+              <div className="frm">
+                <div className="frm-row">
+                  <div className="field">
+                    <label>{t('agent')}</label>
+                    <select className="input" value={agent}
+                      onChange={e => setAgent(e.target.value)}>
+                      {agents.map(a => <option key={a.name} value={a.name}>
+                        {a.display_name || a.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="frm-row">
+                  <div className="field">
+                    <label>{t('skills')}</label>
+                    <div className="chips">
+                      {(available.skills.length ? available.skills : defaults.skills).map(s => (
+                        <button key={s}
+                          className={(overrides.skills ?? defaults.skills).includes(s) ? 'chip on' : 'chip'}
+                          onClick={() => setOverrides(o => ({
+                            ...o, skills: toggleIn(o.skills ?? defaults.skills, s),
+                          }))}>{s}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="frm-row">
+                  <div className="field">
+                    <label>{t('mcp_servers')}</label>
+                    <div className="chips">
+                      {available.mcp.map(s => (
+                        <button key={s}
+                          className={(overrides.mcp_servers ?? defaults.mcp_servers).includes(s) ? 'chip on' : 'chip'}
+                          onClick={() => setOverrides(o => ({
+                            ...o, mcp_servers: toggleIn(o.mcp_servers ?? defaults.mcp_servers, s),
+                          }))}>{s}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="frm-row">
+                  <div className="field">
+                    <label>{t('knowledge_bases')}</label>
+                    <div className="chips">
+                      {available.kbs.map(k => (
+                        <button key={k}
+                          className={(overrides.knowledge_bases ?? defaults.knowledge_bases).includes(k) ? 'chip on' : 'chip'}
+                          onClick={() => setOverrides(o => ({
+                            ...o, knowledge_bases: toggleIn(o.knowledge_bases ?? defaults.knowledge_bases, k),
+                          }))}>{k}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Modal>
+          )}
         </section>
       </div>
     </div>

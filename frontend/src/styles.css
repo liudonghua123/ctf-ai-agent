@@ -952,3 +952,13 @@ textarea { resize: vertical; }
 }
 .chat-log { position: relative; }
 .icon-btn.active { background: var(--accent); color: var(--accent-contrast); border-color: transparent; }
+
+/* composer inner bar */
+.comp-bar {
+  display: flex; align-items: center; gap: var(--s-2);
+}
+.comp-bar .btn { padding: 8px 22px; }
+.comp-hint {
+  font-size: 12px; font-weight: 700; color: var(--text-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}

@@ -101,19 +101,20 @@ export default function KB() {
         </button>
       </div>
 
-      {/* library detail */}
+      {/* library detail modal (maximizable) */}
       {sel && (
-        <div className="detail-panel" style={{ marginTop: 'var(--s-6)' }}>
-          <div className="panel-toolbar">
-            <h2 style={{ flex: 1 }}>{sel.name}</h2>
-            <button className="chip-btn" onClick={() => { setNewFileModal(true); setNewFileName('') }}>+ {t('kb_new_file')}</button>
+        <Modal title={`${t('kb_title')} · ${sel.name}`} wide
+          onClose={() => { setLib(null); setFile(null) }}
+          footer={<>
             <button className="chip-btn danger" onClick={delLib}>{t('kb_delete_lib')}</button>
-          </div>
-
+            <span style={{ flex: 1 }} />
+            <button className="chip-btn" onClick={() => { setNewFileModal(true); setNewFileName('') }}>+ {t('kb_new_file')}</button>
+            {file && <button className="chip-btn danger" onClick={delFile}>{t('delete')}</button>}
+            {file && <button className="chip-btn primary" disabled={!dirty} onClick={saveFile}>{t('kb_save_file')}</button>}
+          </>}>
           {sel.docs.length === 0 && (
             <p style={{ color: 'var(--text-3)', fontSize: 14 }}>{t('kb_empty')}</p>
           )}
-
           <div className="tree">
             {sel.docs.map(d => (
               <button key={d}
@@ -124,23 +125,18 @@ export default function KB() {
               </button>
             ))}
           </div>
-
           {file && (
-            <div style={{ marginTop: 'var(--s-5)' }}>
+            <div style={{ marginTop: 'var(--s-4)' }}>
               <div className="panel-toolbar" style={{ margin: '0 0 var(--s-3)' }}>
                 <b style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>{file}</b>
                 <span style={{ flex: 1 }} />
-                {dirty && <span style={{ color: 'var(--warning)', fontSize: 12, fontWeight: 700 }}>●</span>}
-                <button className="chip-btn danger" onClick={delFile}>{t('delete')}</button>
-                <button className="chip-btn primary" disabled={!dirty} onClick={saveFile}>
-                  {t('kb_save_file')}
-                </button>
+                {dirty && <span style={{ color: 'var(--warning)', fontSize: 12, fontWeight: 700 }}>● {t('unsaved')}</span>}
               </div>
-              <textarea className="code-editor" value={content}
+              <textarea className="code-editor" style={{ minHeight: 360 }} value={content}
                 onChange={e => { setContent(e.target.value); setDirty(true) }} />
             </div>
           )}
-        </div>
+        </Modal>
       )}
 
       {showNew && (
