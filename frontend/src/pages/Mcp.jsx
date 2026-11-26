@@ -1,19 +1,33 @@
 import { useEffect, useState } from 'react'
 import { useI18n } from '../i18n'
+import Modal from '../components/Modal'
 import { getMcp, saveMcpServer, deleteMcp, toggleMcp, mcpTools } from '../api'
 
 const IcoSrv = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
 )
 
-const emptyForm = { name: '', type: 'stdio', command: '', argsText: '', url: '' }
+const emptyForm = { name: '', type: 'stdio', command: '', argsText: '', url: '', headersText: '' }
+
+const parseHeaders = (text) => {
+  const out = {}
+  for (const line of (text || '').split('\n')) {
+    const i = line.indexOf(':')
+    if (i > 0) {
+      const k = line.slice(0, i).trim()
+      const v = line.slice(i + 1).trim()
+      if (k) out[k] = v
+    }
+  }
+  return out
+}
 
 export default function Mcp() {
   const { t } = useI18n()
   const [servers, setServers] = useState([])
-  const [tools, setTools] = useState({})   // name -> [tool...]
+  const [tools, setTools] = useState({})
   const [toolErr, setToolErr] = useState({})
-  const [edit, setEdit] = useState(null)   // null | form (modal)
+  const [edit, setEdit] = useState(null)      // null | form
   const [editingName, setEditingName] = useState(null)
   const [toast, setToast] = useState('')
 
@@ -32,6 +46,8 @@ export default function Mcp() {
         name: s.name, type: s.type,
         command: s.command || '', url: s.url || '',
         argsText: (s.args || []).join('\n'),
+        headersText: Object.entries(s.headers || {})
+          .map(([k, v]) => `${k}: ${v}`).join('\n'),
       })
     } else {
       setEditingName(null)
@@ -44,9 +60,10 @@ export default function Mcp() {
     if (!f.name.trim()) return
     await saveMcpServer({
       name: f.name.trim(), type: f.type,
-      url: f.type === 'http' ? f.url : null,
+      url: f.type !== 'stdio' ? f.url : null,
       command: f.type === 'stdio' ? f.command : null,
       args: f.argsText.split('\n').map(x => x.trim()).filter(Boolean),
+      headers: f.type !== 'stdio' ? parseHeaders(f.headersText) : {},
     })
     setEdit(null); await load(); flash(t('saved'))
   }
@@ -73,6 +90,12 @@ export default function Mcp() {
     }
   }
 
+  const typeLabel = (s) =>
+    s.type === 'http' ? 'HTTP' : s.type === 'sse' ? 'SSE' : 'stdio'
+  const endpoint = (s) => s.type === 'stdio'
+    ? `${s.command} ${(s.args || []).join(' ')}`
+    : s.url
+
   return (
     <div className="page">
       <div className="mgmt-head">
@@ -98,13 +121,18 @@ export default function Mcp() {
             <span className="card-ico"><IcoSrv /></span>
             <div className="card-title">{s.name}</div>
             <div className="card-meta">
-              <span>{s.type === 'http' ? 'HTTP' : 'stdio'}</span>
+              <span>{typeLabel(s)}</span>
               <span style={{
                 fontFamily: 'var(--font-mono)', fontSize: 11.5,
                 overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 170,
                 whiteSpace: 'nowrap',
-              }}>{s.type === 'http' ? s.url : `${s.command} ${(s.args || []).join(' ')}`}</span>
+              }}>{endpoint(s)}</span>
             </div>
+            {Object.keys(s.headers || {}).length > 0 && (
+              <div className="card-meta">
+                <span>headers: {Object.keys(s.headers).length}</span>
+              </div>
+            )}
             <div className="card-actions">
               <button className="chip-btn" onClick={() => openEdit(s)}>{t('mcp_edit')}</button>
               <button className="chip-btn" onClick={() => listTools(s.name)}>
@@ -138,10 +166,15 @@ export default function Mcp() {
       </div>
 
       {edit && (
-        <div className="modal-backdrop" onClick={() => setEdit(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3>{editingName ? `${t('mcp_edit')}: ${editingName}` : t('new_mcp')}</h3>
-            <div className="frm">
+        <Modal wide
+          title={editingName ? `${t('mcp_edit')}: ${editingName}` : t('new_mcp')}
+          onClose={() => setEdit(null)}
+          footer={<>
+            <button className="chip-btn" onClick={() => setEdit(null)}>{t('cancel')}</button>
+            <button className="chip-btn primary" onClick={saveServer}>{t('save')}</button>
+          </>}>
+          <div className="frm">
+            <div className="frm-row">
               <div className="field">
                 <label>{t('name')}</label>
                 <input className="input" value={edit.name}
@@ -150,56 +183,57 @@ export default function Mcp() {
               </div>
               <div className="field">
                 <label>Type</label>
-                <div style={{ display: 'flex', gap: 'var(--s-2)' }}>
-                  <button className={'chip-btn' + (edit.type === 'stdio' ? ' primary' : '')}
-                    onClick={() => setEdit({ ...edit, type: 'stdio' })}>
-                    {t('mcp_type_stdio')}
-                  </button>
-                  <button className={'chip-btn' + (edit.type === 'http' ? ' primary' : '')}
-                    onClick={() => setEdit({ ...edit, type: 'http' })}>
-                    {t('mcp_type_http')}
-                  </button>
+                <div style={{ display: 'flex', gap: 'var(--s-2)', flexWrap: 'wrap' }}>
+                  {['stdio', 'http', 'sse'].map(ty => (
+                    <button key={ty}
+                      className={'chip-btn' + (edit.type === ty ? ' primary' : '')}
+                      onClick={() => setEdit({ ...edit, type: ty })}>
+                      {ty === 'stdio' ? t('mcp_type_stdio')
+                        : ty === 'http' ? 'Streamable HTTP' : 'SSE'}
+                    </button>
+                  ))}
                 </div>
               </div>
-              {edit.type === 'http' ? (
+            </div>
+            {edit.type !== 'stdio' ? (
+              <>
                 <div className="field">
                   <label>{t('mcp_url')}</label>
-                  <input className="input" value={edit.url} placeholder="https://example.com/mcp"
+                  <input className="input" value={edit.url}
+                    placeholder={edit.type === 'sse'
+                      ? 'https://example.com/sse' : 'https://example.com/mcp'}
                     onChange={e => setEdit({ ...edit, url: e.target.value })} />
                 </div>
-              ) : (
-                <>
-                  <div className="field">
-                    <label>{t('mcp_command')}</label>
-                    <input className="input" value={edit.command} placeholder="python / npx / uvx ..."
-                      onChange={e => setEdit({ ...edit, command: e.target.value })} />
-                  </div>
-                  <div className="field">
-                    <label>{t('mcp_args')}</label>
-                    <textarea className="code-editor" style={{ minHeight: 72 }}
-                      value={edit.argsText}
-                      placeholder={'-m\nmcp_server_fetch'}
-                      onChange={e => setEdit({ ...edit, argsText: e.target.value })} />
-                  </div>
-                </>
-              )}
-            </div>
-            <div className="modal-actions">
-              <button className="chip-btn" onClick={() => setEdit(null)}>{t('cancel')}</button>
-              <button className="chip-btn primary" onClick={saveServer}>{t('save')}</button>
-            </div>
+                <div className="field">
+                  <label>{t('mcp_headers')}</label>
+                  <textarea className="code-editor" style={{ minHeight: 84 }}
+                    value={edit.headersText}
+                    placeholder={'Authorization: Bearer sk-...\nX-Api-Key: value'}
+                    onChange={e => setEdit({ ...edit, headersText: e.target.value })} />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="field">
+                  <label>{t('mcp_command')}</label>
+                  <input className="input" value={edit.command}
+                    placeholder="python / npx / uvx ..."
+                    onChange={e => setEdit({ ...edit, command: e.target.value })} />
+                </div>
+                <div className="field">
+                  <label>{t('mcp_args')}</label>
+                  <textarea className="code-editor" style={{ minHeight: 72 }}
+                    value={edit.argsText}
+                    placeholder={'-m\nmcp_server_fetch'}
+                    onChange={e => setEdit({ ...edit, argsText: e.target.value })} />
+                </div>
+              </>
+            )}
           </div>
-        </div>
+        </Modal>
       )}
 
-      {toast && (
-        <div style={{
-          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-          background: 'var(--accent)', color: 'var(--accent-contrast)',
-          padding: '8px 20px', borderRadius: 999, fontWeight: 700, fontSize: 13,
-          zIndex: 80,
-        }}>{toast}</div>
-      )}
+      {toast && <div className="toast">{toast}</div>}
     </div>
   )
 }

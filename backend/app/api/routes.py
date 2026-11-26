@@ -278,12 +278,15 @@ async def get_mcp():
     disabled = set(cfg.get("disabled", []))
     servers = []
     for name, scfg in cfg.get("mcpServers", {}).items():
+        transport = scfg.get("transport") or (
+            "http" if "url" in scfg else "stdio")
         servers.append({
             "name": name,
-            "type": "http" if "url" in scfg else "stdio",
+            "type": transport,  # stdio | http | sse
             "url": scfg.get("url"),
             "command": scfg.get("command"),
             "args": scfg.get("args", []),
+            "headers": scfg.get("headers", {}),
             "enabled": name not in disabled,
         })
     return {"servers": servers}
@@ -291,24 +294,27 @@ async def get_mcp():
 
 class MCPServerModel(BaseModel):
     name: str
-    type: str = "stdio"  # stdio | http
+    type: str = "stdio"  # stdio | http | sse
     url: str | None = None
     command: str | None = None
     args: list[str] = []
+    headers: dict[str, str] = {}
 
 
 @api.put("/mcp")
 async def put_mcp(m: MCPServerModel):
-    cfg = load_mcp_config()
-    if m.type == "http":
+    if m.type in ("http", "sse"):
         if not m.url:
-            raise HTTPException(400, "url required for http server")
-        cfg.setdefault("mcpServers", {})[m.name] = {"url": m.url}
+            raise HTTPException(400, "url required for http/sse server")
+        entry: dict = {"url": m.url, "transport": m.type}
+        if m.headers:
+            entry["headers"] = m.headers
     else:
         if not m.command:
             raise HTTPException(400, "command required for stdio server")
-        cfg.setdefault("mcpServers", {})[m.name] = {
-            "command": m.command, "args": m.args}
+        entry = {"command": m.command, "args": m.args}
+    cfg = load_mcp_config()
+    cfg.setdefault("mcpServers", {})[m.name] = entry
     cfg["disabled"] = [d for d in cfg.get("disabled", []) if d != m.name]
     save_mcp_config(cfg)
     return {"saved": m.name}
@@ -355,6 +361,24 @@ async def get_session(sid: str):
     return s
 
 
+@api.put("/sessions/{sid}/title")
+async def rename_session(sid: str, m: dict):
+    await db.rename_session(sid, m.get("title", "untitled"))
+    return {"ok": True}
+
+
+@api.delete("/sessions/{sid}")
+async def del_session(sid: str):
+    await db.delete_session(sid)
+    return {"deleted": sid}
+
+
+@api.post("/sessions/clear/{agent}")
+async def clear_sessions(agent: str):
+    await db.clear_agent_sessions(agent)
+    return {"cleared": agent}
+
+
 # ---------------- run ----------------
 class RunModel(BaseModel):
     agent: str = "general"
@@ -373,6 +397,11 @@ async def run_agent(m: RunModel):
         raise HTTPException(400, "invalid workflow")
     runner = AgentRunner(cfg, kb, skills, MCPManager.instance())
     sid = await db.create_session(m.agent, m.workflow, m.challenge)
+    # auto-name from first message content (title or description)
+    auto = (m.challenge.get("title")
+            or (m.challenge.get("description") or "").strip()[:40]
+            or "untitled")
+    await db.rename_session(sid, auto)
 
     async def gen():
         yield f"event: session\ndata: {json.dumps({'sid': sid})}\n\n"

@@ -73,10 +73,20 @@ class MCPManager:
         if not cfg:
             raise KeyError(f"mcp server not configured: {name}")
         from fastmcp import Client
-        if "url" in cfg:
-            client = Client(cfg["url"])
+        from fastmcp.client.transports import (
+            StreamableHttpTransport, SSETransport, StdioTransport,
+        )
+        headers = cfg.get("headers") or None
+        if cfg.get("transport") == "sse" or (
+                "url" in cfg and cfg.get("transport") != "http"):
+            # explicit sse; legacy url-only configs also default to sse-safe http
+            transport = SSETransport(cfg["url"], headers=headers)
+        elif "url" in cfg:
+            transport = StreamableHttpTransport(cfg["url"], headers=headers)
         else:
-            client = Client({"mcpServers": {name: cfg}})
+            transport = StdioTransport(cfg["command"], cfg.get("args", []),
+                                       env=cfg.get("env") or None)
+        client = Client(transport)
         self._clients[name] = client
         return client
 

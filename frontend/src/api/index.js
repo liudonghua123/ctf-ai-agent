@@ -36,6 +36,9 @@ export const mcpTools = (name) => api.post(`/mcp/${name}/tools`)
 
 export const listSessions = () => api.get('/sessions')
 export const getSession = (sid) => api.get(`/sessions/${sid}`)
+export const renameSession = (sid, title) => api.put(`/sessions/${sid}/title`, { title })
+export const deleteSession = (sid) => api.delete(`/sessions/${sid}`)
+export const clearAgentSessions = (agent) => api.post(`/sessions/clear/${agent}`)
 
 export const listChallengeFiles = () => api.post('/challenge-files')
 

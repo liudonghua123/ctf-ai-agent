@@ -77,6 +77,22 @@ class Database:
                 "FROM sessions ORDER BY updated_at DESC")
             return [dict(r) for r in await cur.fetchall()]
 
+    async def rename_session(self, sid: str, title: str):
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute("UPDATE sessions SET title=? WHERE id=?",
+                             (title[:80], sid))
+            await db.commit()
+
+    async def delete_session(self, sid: str):
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute("DELETE FROM sessions WHERE id=?", (sid,))
+            await db.commit()
+
+    async def clear_agent_sessions(self, agent: str):
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute("DELETE FROM sessions WHERE agent=?", (agent,))
+            await db.commit()
+
     async def get_session(self, sid: str) -> dict | None:
         async with aiosqlite.connect(self.path) as db:
             db.row_factory = aiosqlite.Row
