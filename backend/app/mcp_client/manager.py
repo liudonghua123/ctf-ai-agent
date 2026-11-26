@@ -20,6 +20,26 @@ def load_mcp_config() -> dict:
     return dict(DEFAULT_CONFIG)
 
 
+def get_disabled_servers() -> set[str]:
+    return set(load_mcp_config().get("disabled", []))
+
+
+def toggle_mcp_server(name: str) -> dict:
+    cfg = load_mcp_config()
+    disabled = set(cfg.get("disabled", []))
+    if name in disabled:
+        disabled.discard(name)
+        enabled = True
+    else:
+        if name not in cfg.get("mcpServers", {}):
+            raise KeyError(f"mcp server not configured: {name}")
+        disabled.add(name)
+        enabled = False
+    cfg["disabled"] = sorted(disabled)
+    save_mcp_config(cfg)
+    return {"name": name, "enabled": enabled}
+
+
 def save_mcp_config(cfg: dict) -> dict:
     MCP_CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2),
                                encoding="utf-8")
@@ -47,6 +67,8 @@ class MCPManager:
     def _get_client(self, name: str):
         if name in self._clients:
             return self._clients[name]
+        if name in get_disabled_servers():
+            raise KeyError(f"mcp server disabled: {name}")
         cfg = load_mcp_config().get("mcpServers", {}).get(name)
         if not cfg:
             raise KeyError(f"mcp server not configured: {name}")

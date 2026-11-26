@@ -43,9 +43,9 @@ class KnowledgeBase:
     def list_kbs(self) -> list[dict]:
         out = []
         for d in sorted(KB_DIR.iterdir()):
-            if d.is_dir():
-                docs = list(d.glob("*.md"))
-                out.append({"name": d.name, "docs": [x.name for x in docs]})
+            if d.is_dir() and not d.name.startswith("."):
+                docs = [str(x.relative_to(d)) for x in sorted(d.rglob("*.md"))]
+                out.append({"name": d.name, "docs": docs})
         return out
 
     async def add_document(self, kb_name: str, title: str, content: str,
@@ -64,8 +64,21 @@ class KnowledgeBase:
         self._build_index(kb_name)
         return {"deleted": doc}
 
+    def create_kb(self, kb_name: str) -> str:
+        self._kb_dir(kb_name)
+        return kb_name
+
     def read_document(self, kb_name: str, doc: str) -> str:
-        return (self._kb_dir(kb_name) / doc).read_text(encoding="utf-8")
+        path = self._kb_dir(kb_name) / doc
+        if not path.exists():
+            raise FileNotFoundError(doc)
+        return path.read_text(encoding="utf-8")
+
+    def write_document(self, kb_name: str, doc: str, content: str) -> None:
+        path = self._kb_dir(kb_name) / doc
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        self._build_index(kb_name)
 
     # -- indexing -----------------------------------------------------------
     def _build_index(self, kb_name: str) -> None:

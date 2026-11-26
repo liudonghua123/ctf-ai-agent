@@ -8,7 +8,11 @@ const BLANK = {
   knowledge_bases: [], skills: [], mcp_servers: [],
 }
 
-const BUILTIN_TOOLS = ['python_exec', 'file_read', 'file_list', 'http_request', 'decode_helper']
+const BUILTIN_TOOLS = ['python_exec', 'file_read', 'file_list', 'http_request', 'decode_helper', 'kb_search']
+
+const IcoAgent = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="7" width="16" height="12" rx="2"/><path d="M12 7V4"/><circle cx="12" cy="3" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><path d="M9 16h6"/></svg>
+)
 
 export default function Agents() {
   const { t } = useI18n()
@@ -27,6 +31,9 @@ export default function Agents() {
     setCurrent(name)
     setCfg({ ...BLANK, ...full.data })
     setMsg('')
+    if (window.innerWidth < 900) {
+      document.querySelector('.detail-panel')?.scrollIntoView({ behavior: 'smooth' })
+    }
   }
 
   const toggleIn = (list, item) =>
@@ -44,45 +51,75 @@ export default function Agents() {
     setSaving(false)
   }
 
+  const newAgent = async () => {
+    const name = window.prompt(t('name'))
+    if (!name) return
+    const safe = name.replace(/[^A-Za-z0-9_-]+/g, '_')
+    const { saveAgent: sv } = await import('../api')
+    await sv(safe, { ...BLANK, name: safe, display_name: name })
+    await load()
+    open(safe)
+  }
+
   return (
-    <div>
-      <div className="page-head">
-        <h1 className="page-title">{t('agents_title')}</h1>
-        <p className="page-hint">{t('agents_hint')}</p>
-      </div>
-      <div className="split">
-        <div className="list-col">
-          {agents.map(a => (
-            <button key={a.name} className={current === a.name ? 'list-item active' : 'list-item'}
-              onClick={() => open(a.name)}>
-              <div className="li-title">{a.display_name || a.name}</div>
-              <div className="li-sub">{a.description}</div>
-            </button>
-          ))}
+    <div className="page">
+      <div className="mgmt-head">
+        <div>
+          <h1>{t('agents_title')}</h1>
+          <p className="hint">{t('agents_hint')}</p>
         </div>
-        <div className="edit-col panel">
-          {!cfg && <div className="log-empty">{t('select_agent')}</div>}
-          {cfg && <>
-            <div className="two-col">
+        <button className="chip-btn" onClick={newAgent}>+ {t('create')}</button>
+      </div>
+
+      <div className="card-grid">
+        {agents.map((a, i) => (
+          <button key={a.name}
+            className={'card' + (current === a.name ? ' sel' : '')}
+            style={{ animationDelay: `${i * 60}ms` }}
+            onClick={() => open(a.name)}>
+            <span className="card-ico"><IcoAgent /></span>
+            <div className="card-title">{a.display_name || a.name}</div>
+            <div className="card-desc">{a.description}</div>
+            <div className="card-meta">
+              <span>{a.name}</span>
+              <span>{a.max_steps || 12} steps</span>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {cfg && (
+        <div className="detail-panel" style={{ marginTop: 'var(--s-6)' }}>
+          <div className="panel-toolbar">
+            <h2 style={{ flex: 1 }}>{current}</h2>
+            {msg && <span style={{ color: 'var(--text-2)', fontSize: 13, fontWeight: 700 }}>{msg}</span>}
+            <button className="chip-btn primary" onClick={save} disabled={saving}>
+              {t('save')}
+            </button>
+          </div>
+
+          <div className="frm">
+            <div className="frm-row">
               <div className="field">
                 <label htmlFor="ag-name">{t('display_name')}</label>
-                <input id="ag-name" value={cfg.display_name}
+                <input id="ag-name" className="input" value={cfg.display_name}
                   onChange={e => setCfg({ ...cfg, display_name: e.target.value })} />
               </div>
               <div className="field">
                 <label htmlFor="ag-steps">{t('max_steps')}</label>
-                <input id="ag-steps" type="number" value={cfg.max_steps}
+                <input id="ag-steps" className="input" type="number" value={cfg.max_steps}
                   onChange={e => setCfg({ ...cfg, max_steps: +e.target.value })} />
               </div>
             </div>
             <div className="field">
               <label htmlFor="ag-desc">{t('description')}</label>
-              <input id="ag-desc" value={cfg.description}
+              <input id="ag-desc" className="input" value={cfg.description}
                 onChange={e => setCfg({ ...cfg, description: e.target.value })} />
             </div>
             <div className="field">
               <label htmlFor="ag-persona">{t('persona')}</label>
-              <textarea id="ag-persona" rows={4} value={cfg.persona}
+              <textarea id="ag-persona" className="code-editor" style={{ minHeight: 140 }}
+                value={cfg.persona}
                 onChange={e => setCfg({ ...cfg, persona: e.target.value })} />
             </div>
             <div className="field">
@@ -131,22 +168,16 @@ export default function Agents() {
             </div>
             <div className="field">
               <label>{t('llm_override')}</label>
-              <div className="two-col">
-                <input placeholder="model" value={cfg.llm?.model || ''}
+              <div className="frm-row">
+                <input className="input" placeholder="model" value={cfg.llm?.model || ''}
                   onChange={e => setCfg({ ...cfg, llm: { ...cfg.llm, model: e.target.value } })} />
-                <input placeholder="base_url" value={cfg.llm?.base_url || ''}
+                <input className="input" placeholder="base_url" value={cfg.llm?.base_url || ''}
                   onChange={e => setCfg({ ...cfg, llm: { ...cfg.llm, base_url: e.target.value } })} />
               </div>
             </div>
-            <div className="row-inline">
-              <button className="btn btn-primary" onClick={save} disabled={saving}>
-                {t('save')}
-              </button>
-              {msg && <span className="msg">{msg}</span>}
-            </div>
-          </>}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

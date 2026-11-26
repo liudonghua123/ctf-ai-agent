@@ -74,6 +74,106 @@ class SkillLoader:
         self._cache.pop(name, None)
         return {"deleted": name}
 
+    # -- enabled/disabled state (stored in skill.yaml `enabled` field) --
+    def toggle_enabled(self, name: str) -> dict:
+        meta = self.get(name)
+        if not meta:
+            raise FileNotFoundError(name)
+        meta["enabled"] = not meta.get("enabled", True)
+        self.save_skill(name, meta)
+        return {"name": name, "enabled": meta["enabled"]}
+
+    def is_enabled(self, name: str) -> bool:
+        meta = self.get(name)
+        return bool(meta and meta.get("enabled", True))
+
+    # -- file tree operations --
+    def _safe_path(self, name: str, rel: str) -> Path:
+        base = self._skill_dir(name).resolve()
+        p = (base / rel).resolve()
+        if not str(p).startswith(str(base)):
+            raise ValueError("path escapes skill dir")
+        return p
+
+    def list_files(self, name: str) -> list[dict]:
+        d = self._skill_dir(name)
+        if not d.exists():
+            raise FileNotFoundError(name)
+        files = []
+        for p in sorted(d.rglob("*")):
+            if p.name.startswith("."):
+                continue
+            rel = str(p.relative_to(d)).replace("\\", "/")
+            files.append({"path": rel, "dir": p.is_dir(),
+                          "size": p.stat().st_size if p.is_file() else None})
+        return files
+
+    def read_file(self, name: str, rel: str) -> dict:
+        p = self._safe_path(name, rel)
+        if not p.exists() or p.is_dir():
+            raise FileNotFoundError(rel)
+        data = p.read_bytes()
+        try:
+            return {"path": rel, "content": data.decode("utf-8"),
+                    "binary": False, "size": len(data)}
+        except UnicodeDecodeError:
+            import base64 as b64
+            return {"path": rel, "content_b64": b64.b64encode(data).decode(),
+                    "binary": True, "size": len(data)}
+
+    def write_file(self, name: str, rel: str, content: str) -> dict:
+        p = self._safe_path(name, rel)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content, encoding="utf-8")
+        self._cache.pop(name, None)
+        return {"path": rel, "size": p.stat().st_size}
+
+    def create_file(self, name: str, rel: str, content: str = "",
+                    is_dir: bool = False) -> dict:
+        p = self._safe_path(name, rel)
+        if p.exists():
+            raise ValueError(f"already exists: {rel}")
+        if is_dir:
+            p.mkdir(parents=True)
+        else:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(content, encoding="utf-8")
+        self._cache.pop(name, None)
+        return {"path": rel, "dir": is_dir}
+
+    def delete_file(self, name: str, rel: str) -> dict:
+        p = self._safe_path(name, rel)
+        if not p.exists():
+            raise FileNotFoundError(rel)
+        if p.is_dir():
+            import shutil
+            shutil.rmtree(p)
+        else:
+            p.unlink()
+        self._cache.pop(name, None)
+        return {"deleted": rel}
+
+    def write_binary(self, name: str, rel: str, data: bytes) -> dict:
+        p = self._safe_path(name, rel)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(data)
+        self._cache.pop(name, None)
+        return {"path": rel, "size": len(data)}
+
+    def rename(self, old: str, new: str) -> dict:
+        import re
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", new):
+            raise ValueError("invalid skill name")
+        d = self._skill_dir(old)
+        if not d.exists():
+            raise FileNotFoundError(old)
+        nd = self._skill_dir(new)
+        if nd.exists():
+            raise ValueError(f"already exists: {new}")
+        d.rename(nd)
+        self._cache.pop(old, None)
+        return {"renamed": f"{old} -> {new}"}
+
 
 async def run_skill_handler(handler_path: str, args: dict, challenge: dict) -> Any:
     """handler_path format: handlers.py::func_name, relative to the skill dir."""
